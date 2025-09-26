@@ -1,64 +1,78 @@
 import streamlit as st
 import pandas as pd
+from PIL import Image
 
-st.set_page_config(page_title="DTF Cost Calculator", layout="wide")
+# ---------------- Sidebar: Editable costs ---------------- #
+st.sidebar.header("Cost Settings")
 
-st.title("🎨 DTF Printing Cost Calculator")
+materials_cost = st.sidebar.number_input("Material cost per meter", value=20.0, step=0.5)
+ink_cost = st.sidebar.number_input("Ink cost per ml", value=0.05, step=0.01)
+powder_cost = st.sidebar.number_input("Powder cost per gram", value=0.02, step=0.01)
 
-# --- Sidebar pricing ---
-st.sidebar.header("⚙️ Pricing Settings")
+labor_monthly = st.sidebar.number_input("Labor monthly cost", value=85000.0, step=1000.0)
+electricity_monthly = st.sidebar.number_input("Electricity monthly cost", value=15000.0, step=1000.0)
+monthly_output = st.sidebar.number_input("Monthly production (meters)", value=4000.0, step=100.0)
 
-materials_data = {
-    "Material": ["Film", "Ink", "Powder"],
-    "Cost per m² ($)": [0.5, 1.2, 0.3],
-}
-materials_df = pd.DataFrame(materials_data)
-materials = st.sidebar.data_editor(materials_df, num_rows="dynamic")
+# ---------------- File Upload ---------------- #
+st.title("DTF Printing Cost Calculator")
 
-monthly_data = {
-    "Item": ["Labor", "Electricity", "Monthly Output (m²)"],
-    "Value": [300, 200, 500],
-}
-monthly_df = pd.DataFrame(monthly_data)
-monthly = st.sidebar.data_editor(monthly_df, num_rows="dynamic")
+uploaded_file = st.file_uploader("Upload your design (PNG/TIFF)", type=["png", "tif", "tiff"])
 
-# --- Upload file ---
-st.header("📂 Upload Design File")
-uploaded_file = st.file_uploader("Upload your design file", type=["png", "jpg", "jpeg", "pdf"])
+if uploaded_file:
+    # Open file
+    img = Image.open(uploaded_file)
 
-manual_height_cm = st.number_input("Enter design height (cm)", min_value=10, max_value=500, value=100)
-design_width_cm = 60  # fixed width
-coverage = st.slider("Estimated coverage (%)", 10, 100, 80)
+    # Get size in pixels
+    width_px, height_px = img.size
 
-# --- Calculations ---
-if manual_height_cm:
-    # total design area (m²)
-    total_area_m2 = (design_width_cm / 100) * (manual_height_cm / 100)
+    # Assume resolution 300 DPI
+    dpi = 300
+    width_cm = (width_px / dpi) * 2.54
+    height_cm = (height_px / dpi) * 2.54
 
-    # effective printed area (m²)
-    effective_area_m2 = total_area_m2 * (coverage / 100)
+    # Fixed print width = 60 cm
+    fixed_width_cm = 60.0
+    total_area_cm2 = fixed_width_cm * height_cm
 
-    # print coverage %
-    print_percentage = (effective_area_m2 / total_area_m2) * 100
+    # Simulate coverage = ratio of non-transparent pixels
+    img_rgb = img.convert("RGBA")
+    pixels = img_rgb.getdata()
+    filled_pixels = sum(1 for p in pixels if p[3] > 0)  # alpha > 0
+    coverage_ratio = filled_pixels / len(pixels)
+    printed_area_cm2 = total_area_cm2 * coverage_ratio
 
-    # material costs
-    material_cost = 0
-    for _, row in materials.iterrows():
-        material_cost += row["Cost per m² ($)"] * effective_area_m2
+    # ---------------- Costs ---------------- #
+    # Material cost
+    material_cost_total = (height_cm / 100) * materials_cost
 
-    # monthly costs
-    labor_cost = float(monthly.loc[monthly["Item"] == "Labor", "Value"])
-    electricity_cost = float(monthly.loc[monthly["Item"] == "Electricity", "Value"])
-    monthly_output = float(monthly.loc[monthly["Item"] == "Monthly Output (m²)", "Value"])
+    # Ink cost (very simplified: assume ink usage proportional to coverage)
+    ink_usage_ml = (printed_area_cm2 / 10000) * 2  # 2 ml per 100 cm²
+    ink_cost_total = ink_usage_ml * ink_cost
 
-    overhead_per_m2 = (labor_cost + electricity_cost) / monthly_output
-    total_cost = material_cost + (overhead_per_m2 * effective_area_m2)
+    # Powder cost (proportional to coverage too)
+    powder_usage_g = (printed_area_cm2 / 10000) * 1.5  # 1.5 g per 100 cm²
+    powder_cost_total = powder_usage_g * powder_cost
 
-    # --- Results ---
-    st.header("📊 Results")
-    st.write(f"**Total design area:** {total_area_m2:.2f} m²")
-    st.write(f"**Effective print area:** {effective_area_m2:.2f} m²")
-    st.write(f"**Print coverage:** {print_percentage:.1f}%")
-    st.write(f"**Material cost:** ${material_cost:.2f}")
-    st.write(f"**Overhead per m²:** ${overhead_per_m2:.2f}")
-    st.write(f"**Total cost for this file:** ${total_cost:.2f}")
+    # Labor + electricity (distributed per meter)
+    overhead_per_meter = (labor_monthly + electricity_monthly) / monthly_output
+    overhead_total = overhead_per_meter * (height_cm / 100)
+
+    # Final total
+    total_cost = material_cost_total + ink_cost_total + powder_cost_total + overhead_total
+
+    # ---------------- Display Results ---------------- #
+    st.subheader("Design Information")
+    st.write(f"**Design height:** {height_cm:.2f} cm")
+    st.write(f"**Design width (fixed):** {fixed_width_cm} cm")
+    st.write(f"**Coverage:** {coverage_ratio*100:.1f} %")
+
+    st.subheader("Cost Breakdown")
+    cost_data = {
+        "Material": [material_cost_total],
+        "Ink": [ink_cost_total],
+        "Powder": [powder_cost_total],
+        "Labor + Electricity": [overhead_total],
+        "Total": [total_cost]
+    }
+    cost_df = pd.DataFrame(cost_data, index=["Cost"])
+    st.table(cost_df.style.format("{:.2f}"))
