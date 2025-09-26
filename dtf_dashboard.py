@@ -1,40 +1,83 @@
 import streamlit as st
 import pandas as pd
-from PIL import Image
 import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="DTF Ink Usage Calculator", layout="wide")
+# -----------------------------
+# 1) Inputs
+# -----------------------------
+st.title("🖨️ DTF Print Cost Calculator")
 
-st.title("🎨 DTF Ink Usage Calculator")
+# Upload design
+uploaded_file = st.file_uploader("📂 Upload your design (PNG / TIF / JPG)", type=["png", "tif", "jpg", "jpeg"])
 
-# --- Upload image ---
-uploaded_file = st.file_uploader("📂 Upload your design (PNG or JPG)", type=["png", "jpg", "jpeg"])
+# Material prices (editable)
+st.sidebar.header("⚙️ Material Prices")
+ink_price = st.sidebar.number_input("💧 Ink price per liter", value=1350)
+film_price = st.sidebar.number_input("📜 Film roll price", value=1800)
+powder_price = st.sidebar.number_input("✨ Powder price per kg", value=450)
 
+# Constants
+fixed_width_cm = 60  # fixed width = 60 cm
+meter_length_cm = 100  # 1 meter = 100 cm
+
+# -----------------------------
+# 2) Process image & calculate area
+# -----------------------------
 if uploaded_file is not None:
-    # فتح الصورة
-    image = Image.open(uploaded_file).convert("CMYK")
-    st.image(image, caption="Your uploaded design", use_container_width=True)
+    image = Image.open(uploaded_file).convert("RGBA")
 
-    # تحويل الصورة لمصفوفة
-    img_array = np.array(image)
+    # Estimate height (cm) assuming DPI = 100 px/inch → 39.37 px/cm
+    dpi = 100
+    px_per_cm = dpi / 2.54
+    height_cm = image.height / px_per_cm
+    width_cm = image.width / px_per_cm
 
-    # فصل القنوات (C, M, Y, K)
-    C, M, Y, K = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2], img_array[:,:,3]
+    # Printed area = non-transparent pixels
+    data = np.array(image)
+    alpha_channel = data[:, :, 3]  # transparency channel
+    printed_pixels = np.sum(alpha_channel > 0)
+    total_pixels = alpha_channel.size
+    printed_area_cm2 = (printed_pixels / total_pixels) * (fixed_width_cm * height_cm)
 
-    # حساب المتوسط لكل قناة
-    coverage = {
-        "Cyan (C)": np.mean(C) / 255 * 100,
-        "Magenta (M)": np.mean(M) / 255 * 100,
-        "Yellow (Y)": np.mean(Y) / 255 * 100,
-        "Black (K)": np.mean(K) / 255 * 100,
-    }
+    # Coverage ratio
+    coverage_ratio = (printed_area_cm2 / (fixed_width_cm * height_cm)) * 100
 
-    df = pd.DataFrame(list(coverage.items()), columns=["Ink", "Coverage %"])
-    st.subheader("📊 Ink Coverage Results")
-    st.dataframe(df, use_container_width=True)
+    # -----------------------------
+    # 3) Pie Chart
+    # -----------------------------
+    labels = ['Printed Area', 'Empty Area']
+    values = [printed_area_cm2, (fixed_width_cm * height_cm) - printed_area_cm2]
+    colors = ['red', 'green']
 
-    # زرار حفظ النتائج
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("💾 Download results (CSV)", csv, "ink_coverage.csv", "text/csv")
-else:
-    st.info("⬆️ Please upload a design image to start calculation.")
+    fig, ax = plt.subplots()
+    ax.pie(values, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+    ax.axis('equal')
+    st.pyplot(fig)
+
+    # -----------------------------
+    # 4) Cost calculation
+    # -----------------------------
+    # Film cost per meter (assuming roll = 100m)
+    film_cost_per_meter = film_price / 100
+
+    # Powder cost per meter (assume 10g per meter)
+    powder_cost_per_meter = powder_price / (1000 / 10)
+
+    base_cost_per_meter = film_cost_per_meter + powder_cost_per_meter
+
+    # Design cost based on reference length = 2.5m
+    ref_length_m = 2.5
+    ref_area_cm2 = fixed_width_cm * (ref_length_m * 100)  # 2.5m → cm
+    design_cost = (printed_area_cm2 / ref_area_cm2) * base_cost_per_meter
+
+    # -----------------------------
+    # 5) Results table
+    # -----------------------------
+    results = pd.DataFrame({
+        "Item": ["Design height (cm)", "Printed area (cm²)", "Coverage (%)", "Base cost per meter (EGP)", "Design cost (EGP)"],
+        "Value": [round(height_cm, 2), round(printed_area_cm2, 2), round(coverage_ratio, 2), round(base_cost_per_meter, 2), round(design_cost, 2)]
+    })
+
+    st.table(results)
