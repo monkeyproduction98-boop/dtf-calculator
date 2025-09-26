@@ -17,7 +17,7 @@ materials_default = {
     "Price (EGP)": [1350, 1800, 450]
 }
 materials_df = pd.DataFrame(materials_default)
-materials = st.sidebar.experimental_data_editor(materials_df, num_rows="dynamic")
+materials = st.sidebar.data_editor(materials_df, num_rows="dynamic")
 
 # Default monthly costs
 monthly_default = {
@@ -25,7 +25,7 @@ monthly_default = {
     "Value": [85000, 15000, 4000]
 }
 monthly_df = pd.DataFrame(monthly_default)
-monthly = st.sidebar.experimental_data_editor(monthly_df, num_rows="dynamic")
+monthly = st.sidebar.data_editor(monthly_df, num_rows="dynamic")
 
 # --- File upload ---
 st.subheader("📂 Upload your design file")
