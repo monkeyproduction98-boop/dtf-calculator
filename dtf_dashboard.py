@@ -1,47 +1,40 @@
 import streamlit as st
-from PIL import Image
 import pandas as pd
+from PIL import Image
+import numpy as np
 
-# إعدادات الصفحة
-st.set_page_config(page_title="DTF Cost Calculator", page_icon="🎨", layout="wide")
+st.set_page_config(page_title="DTF Ink Usage Calculator", layout="wide")
 
-st.title("🎨 DTF Printing Cost Calculator")
+st.title("🎨 DTF Ink Usage Calculator")
 
-# --- إدخال البيانات من المستخدم ---
-st.sidebar.header("⚙️ الإعدادات")
+# --- Upload image ---
+uploaded_file = st.file_uploader("📂 Upload your design (PNG or JPG)", type=["png", "jpg", "jpeg"])
 
-ink_price = st.sidebar.number_input("💧 سعر لتر الحبر (جنيه)", value=1350.0, step=50.0)
-powder_price = st.sidebar.number_input("🧂 سعر كيلو البودرة (جنيه)", value=450.0, step=10.0)
-roll_price = st.sidebar.number_input("📜 سعر رول 100 متر (جنيه)", value=1800.0, step=50.0)
-salary_cost = st.sidebar.number_input("👷 المرتبات الشهرية (جنيه)", value=85000.0, step=1000.0)
-electricity_cost = st.sidebar.number_input("⚡ تكلفة الكهرباء الشهرية (جنيه)", value=15000.0, step=500.0)
-monthly_output = st.sidebar.number_input("🖨️ الإنتاج الشهري (متر)", value=4000, step=100)
+if uploaded_file is not None:
+    # فتح الصورة
+    image = Image.open(uploaded_file).convert("CMYK")
+    st.image(image, caption="Your uploaded design", use_container_width=True)
 
-coverage = st.sidebar.slider("📏 نسبة التغطية (%)", min_value=1, max_value=100, value=100)
+    # تحويل الصورة لمصفوفة
+    img_array = np.array(image)
 
-# --- حساب التكلفة ---
-ink_cost_per_m = (ink_price / 1000) * (coverage / 100) * 10   # تقدير 10ml لكل متر full cover
-powder_cost_per_m = (powder_price / 1000) * 20 * (coverage / 100)  # تقدير 20g لكل متر full cover
-roll_cost_per_m = roll_price / 100
+    # فصل القنوات (C, M, Y, K)
+    C, M, Y, K = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2], img_array[:,:,3]
 
-fixed_costs_per_m = (salary_cost + electricity_cost) / monthly_output
+    # حساب المتوسط لكل قناة
+    coverage = {
+        "Cyan (C)": np.mean(C) / 255 * 100,
+        "Magenta (M)": np.mean(M) / 255 * 100,
+        "Yellow (Y)": np.mean(Y) / 255 * 100,
+        "Black (K)": np.mean(K) / 255 * 100,
+    }
 
-total_cost_per_m = ink_cost_per_m + powder_cost_per_m + roll_cost_per_m + fixed_costs_per_m
+    df = pd.DataFrame(list(coverage.items()), columns=["Ink", "Coverage %"])
+    st.subheader("📊 Ink Coverage Results")
+    st.dataframe(df, use_container_width=True)
 
-# --- عرض النتائج ---
-data = {
-    "العنصر": ["🎨 حبر", "🧂 بودرة", "📜 رول", "👷 مرتبات/كهربا", "💰 الإجمالي"],
-    "تكلفة للمتر (جنيه)": [
-        round(ink_cost_per_m, 2),
-        round(powder_cost_per_m, 2),
-        round(roll_cost_per_m, 2),
-        round(fixed_costs_per_m, 2),
-        round(total_cost_per_m, 2)
-    ]
-}
-df = pd.DataFrame(data)
-
-st.subheader("📊 تفاصيل التكلفة")
-st.table(df)
-
-st.success(f"✅ التكلفة النهائية للمتر: **{round(total_cost_per_m, 2)} جنيه**")
+    # زرار حفظ النتائج
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("💾 Download results (CSV)", csv, "ink_coverage.csv", "text/csv")
+else:
+    st.info("⬆️ Please upload a design image to start calculation.")
