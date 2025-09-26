@@ -58,11 +58,12 @@ labor_cost = monthly_costs.get("Labor", 0)
 electricity_cost = monthly_costs.get("Electricity", 0)
 monthly_meters = monthly_costs.get("Monthly Meters", 1000)
 
-monthly_cost_per_meter = (labor_cost + electricity_cost) / monthly_meters
+monthly_cost_per_meter = (labor_cost + electricity_cost) / monthly_meters if monthly_meters > 0 else 0
 
 # Final cost
 cost_per_meter = material_cost_per_m2 + monthly_cost_per_meter
 total_cost = cost_per_meter * meters_to_calculate
 
+# --- Results ---
 st.success(f"💰 Cost per meter: {cost_per_meter:.2f}")
 st.success(f"💰 Total cost for {meters_to_calculate} meter(s): {total_cost:.2f}")
