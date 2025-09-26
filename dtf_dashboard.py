@@ -11,7 +11,11 @@ st.sidebar.header("💰 Cost Settings")
 
 materials_data = {
     "Item": ["Film Roll (per meter)", "Ink (per ml)", "Powder (per gram)"],
-    "Cost": [2.0, 0.05, 0.03]
+    "Cost": [
+        1800 / 100,   # لو الرول 100 متر
+        1350 / 1000,  # لتر = 1000 مل
+        450 / 1000    # كيلو = 1000 جرام
+    ]
 }
 materials_df = pd.DataFrame(materials_data)
 materials = st.sidebar.data_editor(materials_df, num_rows="dynamic")
@@ -21,7 +25,7 @@ st.sidebar.header("⚡ Fixed Monthly Costs")
 
 monthly_costs = {
     "Item": ["Labor", "Electricity", "Monthly Production (meters)"],
-    "Cost": [500, 300, 2000]
+    "Cost": [85000, 15000, 4000]
 }
 monthly_df = pd.DataFrame(monthly_costs)
 monthly = st.sidebar.data_editor(monthly_df, num_rows="dynamic")
@@ -39,7 +43,7 @@ if uploaded_file:
     design_width_cm = 60
     design_height_cm = (height / dpi) * 2.54  # pixels/dpi → inches → cm
 
-    st.success(f"✅ File loaded successfully!")
+    st.success("✅ File loaded successfully!")
     st.write(f"**Design height:** {design_height_cm:.2f} cm")
     st.write(f"**Fixed width:** {design_width_cm} cm")
 
@@ -61,6 +65,6 @@ if uploaded_file:
     st.subheader("📊 Cost Breakdown")
     breakdown = pd.DataFrame({
         "Cost Item": ["Film", "Ink", "Powder", "Labor", "Electricity", "TOTAL"],
-        "Value ($)": [film_cost, ink_cost, powder_cost, labor_cost, electricity_cost, total_cost]
+        "Value (EGP)": [film_cost, ink_cost, powder_cost, labor_cost, electricity_cost, total_cost]
     })
     st.table(breakdown)
