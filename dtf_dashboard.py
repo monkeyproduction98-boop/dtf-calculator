@@ -1,69 +1,63 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from PIL import Image
+import numpy as np
 
-# --- Title ---
-st.title("DTF Printing Cost Calculator")
+st.set_page_config(page_title="DTF Cost Calculator", layout="wide")
+
+st.title("🎨 DTF Printing Cost Calculator")
+
+# --- Sidebar tables ---
+st.sidebar.header("⚙️ Settings")
+
+# Default material costs
+materials_default = {
+    "Item": ["Ink (per liter)", "Film roll", "Powder (per kg)"],
+    "Price (EGP)": [1350, 1800, 450]
+}
+materials_df = pd.DataFrame(materials_default)
+materials = st.sidebar.experimental_data_editor(materials_df, num_rows="dynamic")
+
+# Default monthly costs
+monthly_default = {
+    "Item": ["Labor (per month)", "Electricity (per month)", "Monthly output (m)"],
+    "Value": [85000, 15000, 4000]
+}
+monthly_df = pd.DataFrame(monthly_default)
+monthly = st.sidebar.experimental_data_editor(monthly_df, num_rows="dynamic")
+
+# --- File upload ---
+st.subheader("📂 Upload your design file")
+uploaded_file = st.file_uploader("Choose a PNG/TIF file", type=["png", "tif", "tiff"])
 
 # --- Inputs ---
-st.header("Design Dimensions")
-x = st.number_input("Enter design height (cm):", min_value=1.0, value=100.0, step=1.0)
-width = 60.0  # fixed
-st.write(f"Width is fixed: {width} cm")
+col1, col2 = st.columns(2)
+with col1:
+    x = st.number_input("Design height (cm)", min_value=1.0, value=100.0)
+with col2:
+    y = st.number_input("Printed area (cm²)", min_value=1.0, value=2000.0)
 
-y = st.number_input("Enter printed area (cm²):", min_value=1.0, value=1000.0, step=10.0)
+width = 60.0  # fixed width
+total_area = width * x
+coverage_pct = (y / total_area) * 100
 
-# --- Area Calculations ---
-total_area = x * width
-printed_percent = (y / total_area) * 100
-remaining_area = total_area - y
-
-st.metric("Total Area (cm²)", f"{total_area:.2f}")
-st.metric("Printed Area %", f"{printed_percent:.2f}%")
-
-# --- Chart ---
-labels = ['Printed Area', 'Remaining']
-sizes = [y, remaining_area]
-colors = ['red', '#00FF00']  # bright green
+# --- Pie chart ---
+st.subheader("📊 Coverage Chart")
 fig, ax = plt.subplots()
-ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+sizes = [y, total_area - y]
+colors = ['red', 'lime']  # red for printed, bright green for empty
+labels = ['Printed area', 'Empty area']
+ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors, startangle=90)
 ax.axis('equal')
 st.pyplot(fig)
 
-# --- Editable Costs Tables ---
-st.header("Material & Consumables Prices")
-default_materials = {
-    "Item": ["Ink", "Film", "Powder"],
-    "Price per m²": [2.0, 1.5, 1.0]
-}
-materials_df = st.data_editor(pd.DataFrame(default_materials), num_rows="dynamic")
+# --- Cost calculation ---
+st.subheader("💰 Cost Calculation")
 
-st.header("Monthly Fixed Costs")
-default_monthly = {
-    "Item": ["Labor", "Electricity", "Monthly Meters"],
-    "Value": [500.0, 200.0, 1000.0]  # Monthly meters = productivity
-}
-monthly_df = st.data_editor(pd.DataFrame(default_monthly), num_rows="dynamic")
+# Extract values
+ink_price = float(materials.loc[materials["Item"] == "Ink (per liter)", "Price (EGP)"].values[0])
+film_price = float(materials.loc[materials["Item"] == "Film roll", "Price (EGP)"].values[0])
+powder_price = float(materials.loc[materials["Item"] == "Powder (per kg)", "Price (EGP)"].values[0])
 
-# --- Cost Calculation ---
-st.header("Cost Calculation per 1 Meter")
-meters_to_calculate = st.number_input("Meters to calculate (default 1):", min_value=1, value=1)
-
-# Material costs per m²
-material_cost_per_m2 = materials_df["Price per m²"].sum()
-
-# Monthly costs distributed per meter
-monthly_costs = dict(zip(monthly_df["Item"], monthly_df["Value"]))
-labor_cost = monthly_costs.get("Labor", 0)
-electricity_cost = monthly_costs.get("Electricity", 0)
-monthly_meters = monthly_costs.get("Monthly Meters", 1000)
-
-monthly_cost_per_meter = (labor_cost + electricity_cost) / monthly_meters if monthly_meters > 0 else 0
-
-# Final cost
-cost_per_meter = material_cost_per_m2 + monthly_cost_per_meter
-total_cost = cost_per_meter * meters_to_calculate
-
-# --- Results ---
-st.success(f"💰 Cost per meter: {cost_per_meter:.2f}")
-st.success(f"💰 Total cost for {meters_to_calculate} meter(s): {total_cost:.2f}")
+labor_cost = float(monthly.loc_
