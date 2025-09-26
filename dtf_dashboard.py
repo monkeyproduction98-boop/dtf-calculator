@@ -60,4 +60,25 @@ ink_price = float(materials.loc[materials["Item"] == "Ink (per liter)", "Price (
 film_price = float(materials.loc[materials["Item"] == "Film roll", "Price (EGP)"].values[0])
 powder_price = float(materials.loc[materials["Item"] == "Powder (per kg)", "Price (EGP)"].values[0])
 
-labor_cost = float(monthly.loc_
+labor_cost = float(monthly.loc[monthly["Item"] == "Labor (per month)", "Value"].values[0])
+electricity_cost = float(monthly.loc[monthly["Item"] == "Electricity (per month)", "Value"].values[0])
+monthly_output = float(monthly.loc[monthly["Item"] == "Monthly output (m)", "Value"].values[0])
+
+# Base material cost (rough assumption per meter full coverage)
+ink_cost_per_m = ink_price / 1000 * 10  # assume 10 ml/m
+film_cost_per_m = film_price / 100  # assume 100m roll
+powder_cost_per_m = powder_price / 50  # assume 50m/kg
+
+material_cost_per_m = ink_cost_per_m + film_cost_per_m + powder_cost_per_m
+
+# Monthly costs per meter
+monthly_cost_per_m = (labor_cost + electricity_cost) / monthly_output
+
+# Adjusted cost per design
+factor = x / 250  # because x=2.5m considered 1 full meter
+final_cost = (material_cost_per_m + monthly_cost_per_m) * factor
+
+st.write(f"**Coverage %:** {coverage_pct:.2f}%")
+st.write(f"**Material cost per meter:** {material_cost_per_m:.2f} EGP")
+st.write(f"**Monthly cost per meter:** {monthly_cost_per_m:.2f} EGP")
+st.write(f"**Total cost for this design (x={x}cm):** {final_cost:.2f} EGP")
