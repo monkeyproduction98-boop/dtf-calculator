@@ -1,79 +1,66 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+from PIL import Image
 
-st.set_page_config(page_title="DTF Printing Calculator", layout="wide")
+st.set_page_config(page_title="DTF File Cost Calculator", layout="wide")
 
-st.title("🖨️ DTF Printing Cost Calculator")
+st.title("🎨 DTF File Cost Calculator")
 
-# --- Sidebar settings ---
-st.sidebar.header("⚙️ Settings")
+# --- Sidebar for costs ---
+st.sidebar.header("💰 Cost Settings")
 
-# Materials cost table
-materials_df = pd.DataFrame({
-    "Material": ["Film", "Ink", "Powder"],
-    "Cost per meter (EGP)": [30, 50, 20]
-})
+materials_data = {
+    "Item": ["Film Roll (per meter)", "Ink (per ml)", "Powder (per gram)"],
+    "Cost": [2.0, 0.05, 0.03]
+}
+materials_df = pd.DataFrame(materials_data)
 materials = st.sidebar.data_editor(materials_df, num_rows="dynamic")
 
-# Monthly fixed costs
-monthly_df = pd.DataFrame({
-    "Item": ["Labor", "Electricity", "Monthly Production"],
-    "Value": [6000, 2000, 3000]  # EGP and meters
-})
+st.sidebar.markdown("---")
+st.sidebar.header("⚡ Fixed Monthly Costs")
+
+monthly_costs = {
+    "Item": ["Labor", "Electricity", "Monthly Production (meters)"],
+    "Cost": [500, 300, 2000]
+}
+monthly_df = pd.DataFrame(monthly_costs)
 monthly = st.sidebar.data_editor(monthly_df, num_rows="dynamic")
 
-# --- User input for design ---
-st.subheader("Design Parameters")
+# --- Upload file ---
+st.header("📂 Upload Your Design")
+uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg", "tif", "tiff"])
 
-x = st.number_input("Enter the design height (meters)", min_value=0.1, step=0.1)
-width = 0.6  # fixed 60 cm
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    width, height = image.size  # pixels
+    dpi = image.info.get("dpi", (300, 300))[0]
 
-# Calculate design area
-y = x * width
-st.write(f"**Design Area (Y):** {y:.2f} m²")
+    # Convert to cm (assuming width fixed = 60 cm)
+    design_width_cm = 60
+    design_height_cm = (height / dpi) * 2.54  # pixels/dpi → inches → cm
 
-# Percent of full area (60 * x)
-full_area = 60 * x
-percent_y = (y / full_area) * 100 if full_area > 0 else 0
-st.write(f"**Y percentage of (60 × X):** {percent_y:.2f}%")
+    st.success(f"✅ File loaded successfully!")
+    st.write(f"**Design height:** {design_height_cm:.2f} cm")
+    st.write(f"**Fixed width:** {design_width_cm} cm")
 
-# --- Pie chart ---
-fig, ax = plt.subplots()
-sizes = [y, full_area - y]
-colors = ['red', 'limegreen']
-labels = ['Design Area (Y)', 'Remaining']
+    # --- Coverage input ---
+    coverage = st.slider("Printing coverage (%)", 0, 100, 50)
+    coverage_area = (coverage / 100) * (design_width_cm * design_height_cm)
 
-ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-ax.axis('equal')
-st.pyplot(fig)
+    # --- Cost Calculation ---
+    film_cost = (design_height_cm / 100) * float(materials.loc[0, "Cost"])  # per meter
+    ink_cost = coverage_area * float(materials.loc[1, "Cost"])
+    powder_cost = coverage_area * float(materials.loc[2, "Cost"])
 
-# --- Cost calculations ---
-# Materials cost per meter
-material_cost_per_m = materials["Cost per meter (EGP)"].sum()
+    labor_cost = (float(monthly.loc[0, "Cost"]) / float(monthly.loc[2, "Cost"])) * (design_height_cm / 100)
+    electricity_cost = (float(monthly.loc[1, "Cost"]) / float(monthly.loc[2, "Cost"])) * (design_height_cm / 100)
 
-# Monthly costs
-labor_cost = float(monthly.loc[monthly["Item"] == "Labor", "Value"])
-electricity_cost = float(monthly.loc[monthly["Item"] == "Electricity", "Value"])
-monthly_production = float(monthly.loc[monthly["Item"] == "Monthly Production", "Value"])
+    total_cost = film_cost + ink_cost + powder_cost + labor_cost + electricity_cost
 
-# Monthly fixed cost per meter
-monthly_cost_per_m = (labor_cost + electricity_cost) / monthly_production
-
-# Total cost per meter (standard)
-cost_per_m = material_cost_per_m + monthly_cost_per_m
-
-# Cost for the entered design (normalized to 2.5m height)
-normalized_design_m = x / 2.5
-design_cost = normalized_design_m * cost_per_m
-
-# Cost per real meter for THIS design
-cost_per_real_meter = cost_per_m
-
-# --- Display results ---
-st.subheader("💰 Cost Results")
-st.write(f"**Material cost per meter:** {material_cost_per_m:.2f} EGP")
-st.write(f"**Fixed monthly cost per meter:** {monthly_cost_per_m:.2f} EGP")
-st.write(f"**Total cost per meter (standard 2.5m):** {cost_per_m:.2f} EGP")
-st.write(f"**Total cost for this design (x={x}m):** {design_cost:.2f} EGP")
-st.write(f"**Cost per real meter (based on this design):** {cost_per_real_meter:.2f} EGP")
+    # --- Show table ---
+    st.subheader("📊 Cost Breakdown")
+    breakdown = pd.DataFrame({
+        "Cost Item": ["Film", "Ink", "Powder", "Labor", "Electricity", "TOTAL"],
+        "Value ($)": [film_cost, ink_cost, powder_cost, labor_cost, electricity_cost, total_cost]
+    })
+    st.table(breakdown)
